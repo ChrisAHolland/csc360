@@ -50,10 +50,11 @@ char* processInput(char input[], char* container[]) {
 int main() {
     for(;;) {
         // Print the prompt and retrieve user input
-        char input[MAX_INPUT];
+        //char input[MAX_INPUT];
         printPrompt();
-        fgets(input, MAX_INPUT, stdin);
-        
+        //fgets(input, MAX_INPUT, stdin);
+	char prompt[] = "";
+        char* input = readline(prompt);
         // Tokenize the user input
         char* args = strtok(input, " ");
         char* tokens[256];
