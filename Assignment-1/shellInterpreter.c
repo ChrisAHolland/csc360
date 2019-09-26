@@ -45,6 +45,17 @@ void runCommand(char** commands) {
     }
 }
 
+void changeDirectory(char** path) {
+    int ret;
+
+    // Cases to navigate home
+    if (path[1] == NULL || !strcmp(path[1], "~")) {
+        ret = chdir(getenv("HOME"));
+    } else {
+        ret = chdir(path[1]);
+    }
+}
+
 int main() {
     for(;;) {
         // Print the prompt and retrieve user input
@@ -60,7 +71,12 @@ int main() {
         }
         tokens[i] = NULL;
 
-        runCommand(tokens);
+        // Check if its a "cd" command
+        if (!strcmp(tokens[0], "cd")) {
+            changeDirectory(tokens);
+        } else {
+            runCommand(tokens);
+        }
     }
     return 0;
 }
