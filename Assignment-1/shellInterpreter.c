@@ -77,6 +77,8 @@ int main() {
         } else {
             runCommand(tokens);
         }
+
+        free(input);
     }
     return 0;
 }
