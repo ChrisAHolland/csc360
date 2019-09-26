@@ -11,20 +11,30 @@
 #define MAX_INPUT 128
 
 /*
-*   Print the prompt as it changes
+*   Creates and returns the prompt
 */
-void printPrompt() {
-    char prompt[256];
+char* printPrompt() {
+    static char prompt[256];
     char *login;
-    login = getlogin();
     char hostname[128];
-    gethostname(hostname, sizeof(hostname));
     char cwd[128];
+    login = getlogin();
+    gethostname(hostname, sizeof(hostname));
     getcwd(cwd, sizeof(cwd));
-    printf("SSI: %s@%s: %s > ", login, hostname, cwd);
+
+    prompt[0] = '\0';
+    strcat(prompt, "SSI: ");
+    strcat(prompt, login);
+    strcat(prompt, "@");
+    strcat(prompt, hostname);
+    strcat(prompt, cwd);
+    strcat(prompt, " > ");
+
+    return(prompt);
 }    
 
-void run_command(char** commands) {
+// Runs a simple command (Part 1)
+void runCommand(char** commands) {
     pid_t pid = fork();
 
     // Inside child proces
@@ -34,27 +44,11 @@ void run_command(char** commands) {
         waitpid(pid, NULL, 0); // Change to 1 to wait in background
     }
 }
-/*
-char* processInput(char input[], char* container[]) {
-    char *token;
-    int i = 0;
-    token = strtok(input, " ");
-    container[i++] = token;
-    while(token != NULL) {
-        container[i++] = token;
-        token = strtok(NULL, " ");
-    }
-    return token;
-}
-*/
+
 int main() {
     for(;;) {
         // Print the prompt and retrieve user input
-        //char input[MAX_INPUT];
-        printPrompt();
-        //fgets(input, MAX_INPUT, stdin);
-	char prompt[] = "";
-        char* input = readline(prompt);
+        char* input = readline(printPrompt());
         // Tokenize the user input
         char* args = strtok(input, " ");
         char* tokens[256];
@@ -66,8 +60,7 @@ int main() {
         }
         tokens[i] = NULL;
 
-        run_command(tokens);
+        runCommand(tokens);
     }
-
     return 0;
 }
