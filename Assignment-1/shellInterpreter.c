@@ -14,7 +14,7 @@
 *   Linked list node
 */
 typedef struct Node {
-    char command[256];
+    char command[1024];
     pid_t pid;
     struct Node* next;
 } node;
@@ -31,7 +31,7 @@ int listLength = 0;
 void add(char** command, pid_t pid) {
     node* newNode = (node*)malloc(sizeof(node));
     newNode->pid = pid;
-    int i = 0;
+    int i = 1;
 
     while(command[i] != NULL) {
         strcat(newNode->command, command[i]);
@@ -53,6 +53,10 @@ void add(char** command, pid_t pid) {
     listLength++;
 }
 
+/*
+*   Deletes the node from the list with a given pid
+*   Based on the pseudocode provided in Tutorial 3 (Slide 5)
+*/
 void delete(pid_t pid) {
     node* temp = head;
     listLength--;
@@ -76,7 +80,7 @@ void delete(pid_t pid) {
 void listNodes() {
     node* temp = head;
 
-    while(temp!= NULL) {
+    while(temp != NULL) {
         printf("%d: %s\n", temp->pid, temp->command);
         temp = temp->next;
     }
@@ -84,11 +88,16 @@ void listNodes() {
     printf("Total Background Jobs: %d\n", listLength);
 }
 
+/*
+*   Check if a child process has terminated
+*   Based on the pseudocode provided in Tutorial 3 (Slide 5)
+*/
 void checkProcesses() {
     if (listLength > 0) {
         pid_t pid = waitpid(0, NULL, WNOHANG);
 
         while(pid > 0) {
+            // Unlike aformentioned pseudocode, I implemented a seperate delete function
             delete(pid);
             pid = waitpid(0, NULL, WNOHANG);
         }
@@ -98,7 +107,7 @@ void checkProcesses() {
 /*
 *   Creates and returns the prompt
 */
-char* printPrompt() {
+char* getPrompt() {
     static char prompt[256];
     char *login;
     char hostname[128];
@@ -156,7 +165,7 @@ void addBackground(char** commands) {
 int main() {
     for(;;) {
         // Print the prompt and retrieve user input
-        char* input = readline(printPrompt());
+        char* input = readline(getPrompt());
         // Tokenize the user input
         char* args = strtok(input, " ");
         char* tokens[256];
@@ -171,14 +180,21 @@ int main() {
         }
         tokens[i] = NULL;
 
-        // Check if its a "cd" command
+        // Check if it's a "cd" command (Part 2)
         if (!strcmp(tokens[0], "cd")) {
             changeDirectory(tokens);
+        // Check if it's a command to run in the background (Part 3)
         } else if (!strcmp(tokens[0], "bg")) {
             addBackground(tokens);
+        // List the background processes (Part 3)
         } else if (!strcmp(tokens[0], "bglist")) {
             listNodes();
+        // Command to exit the SSI
+        } else if (!strcmp(tokens[0], "exit")) {
+            printf("You have chosen to exit the Simple Shell Interpreter.\n");
+            exit(1);
         } else {
+        // Default to run a basic command (Part 1)
             runCommand(tokens);
         }
 
