@@ -156,7 +156,7 @@ void addBackground(char** commands) {
 
     if (pid == 0) {
         execvp(commands[1], commands + 1);
-        exit(1);
+        //exit(1);
     } else if (pid > 0) {
         add(commands, pid);
     }
