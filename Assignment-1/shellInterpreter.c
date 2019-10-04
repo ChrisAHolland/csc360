@@ -43,10 +43,7 @@ void add(char** command, pid_t pid) {
         head = newNode;
     } else {
         node* temp = head;
-
-        while(temp->next != NULL) 
-            temp = temp->next;
-        
+        for(; temp->next != NULL; temp = temp->next);
         temp->next = newNode;
     }
     newNode->next = NULL;
@@ -59,7 +56,6 @@ void add(char** command, pid_t pid) {
 */
 void delete(pid_t pid) {
     node* temp = head;
-    listLength--;
     
     if (head->pid == pid) {
         printf("%d: %s has terminated.\n", temp->pid, temp->command);
@@ -72,6 +68,7 @@ void delete(pid_t pid) {
         temp->next = temp->next->next;
         free(temp->next);
     }
+    listLength--;
 }
 
 /*
@@ -166,13 +163,17 @@ int main() {
     for(;;) {
         // Print the prompt and retrieve user input
         char* input = readline(getPrompt());
+        // Had a bug where if I just hit 'Enter' I would get a seg. fault.
+        // This fixes that
+        if (*input == '\0') continue;
         // Tokenize the user input
         char* args = strtok(input, " ");
-        char* tokens[256];
+        char* tokens[MAX_INPUT];
 
         // Check for terminating processes
         checkProcesses();
 
+        // Tokenize input into command tokens
         int i = 0;
         while (args) {
             tokens[i++] = args;
