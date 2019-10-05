@@ -26,11 +26,12 @@ node* head = NULL;
 int listLength = 0;
 
 /*
-*   Adds a new node to the list
+*   Adds a new node to the start of the list
 */
 void add(char** command, pid_t pid) {
     node* newNode = (node*)malloc(sizeof(node));
     newNode->pid = pid;
+    newNode->command[0] = '\0';
     int i = 1;
 
     while(command[i] != NULL) {
@@ -38,15 +39,8 @@ void add(char** command, pid_t pid) {
         strcat(newNode->command, " ");
         i++;
     }
-
-    if (listLength == 0) {
-        head = newNode;
-    } else {
-        node* temp = head;
-        for(; temp->next != NULL; temp = temp->next);
-        temp->next = newNode;
-    }
-    newNode->next = NULL;
+    newNode->next = head;
+    head = newNode;
     listLength++;
 }
 
@@ -104,8 +98,7 @@ void checkProcesses() {
 /*
 *   Creates and returns the prompt
 */
-char* getPrompt() {
-    static char prompt[256];
+void getPrompt(char* prompt) {
     char *login;
     char hostname[128];
     char cwd[128];
@@ -120,8 +113,6 @@ char* getPrompt() {
     strcat(prompt, hostname);
     strcat(prompt, cwd);
     strcat(prompt, " > ");
-
-    return(prompt);
 }    
 
 // Runs a simple command (Part 1)
@@ -143,6 +134,8 @@ void changeDirectory(char** path) {
     // Cases to navigate home
     if (path[1] == NULL || !strcmp(path[1], "~")) {
         ret = chdir(getenv("HOME"));
+    } else if (!strcmp(path[1], "..")) {
+        ret = chdir("../");
     } else {
         ret = chdir(path[1]);
     }
@@ -153,7 +146,6 @@ void addBackground(char** commands) {
 
     if (pid == 0) {
         execvp(commands[1], commands + 1);
-        //exit(1);
     } else if (pid > 0) {
         add(commands, pid);
     }
@@ -162,10 +154,16 @@ void addBackground(char** commands) {
 int main() {
     for(;;) {
         // Print the prompt and retrieve user input
-        char* input = readline(getPrompt());
+        char prompt[256];
+        getPrompt(prompt);
+        char* input = readline(prompt);
+        
         // Had a bug where if I just hit 'Enter' I would get a seg. fault.
         // This fixes that
-        if (*input == '\0') continue;
+        if (*input == '\0') {
+            free(input);
+            continue;
+        }
         // Tokenize the user input
         char* args = strtok(input, " ");
         char* tokens[MAX_INPUT];
