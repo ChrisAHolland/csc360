@@ -1,3 +1,7 @@
+/*
+*   A simple shell interpreter.
+*   ~ Chris Holland
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/unistd.h>
@@ -96,7 +100,7 @@ void checkProcesses() {
 }
 
 /*
-*   Creates and returns the prompt
+*   Creates the prompt in the buffer
 */
 void getPrompt(char* prompt) {
     char *login;
@@ -157,7 +161,7 @@ int main() {
         char prompt[256];
         getPrompt(prompt);
         char* input = readline(prompt);
-        
+
         // Had a bug where if I just hit 'Enter' I would get a seg. fault.
         // This fixes that
         if (*input == '\0') {
