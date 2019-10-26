@@ -2,7 +2,7 @@
 all: mts
 
 mts: mts.c
-		gcc mts.c -o mts
+		gcc mts.c -pthread -o mts
 
 .PHONY clean:
 clean:

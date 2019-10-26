@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pthread.h>
+
+#define BILLION 1000000000.0
 
 typedef struct Train {
     int number;
