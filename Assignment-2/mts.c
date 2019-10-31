@@ -4,9 +4,12 @@
 #include <pthread.h>
 #include <time.h>
 
+// Train priorities
+#define HIGH 1
+#define LOW 0
+
 // Timer setup from Tutorial 7
 #define BILLION 1000000000.0;
-
 struct timespec start, stop;
 double accum;
 
@@ -53,7 +56,7 @@ train* peek(node** head) {
 }
 
 /*
-*   Removes the node with the highest priority
+*   Removes the node with the highest priority/head node
 */
 void dequeue(node** head) {
     node* temp = *head;
@@ -73,6 +76,14 @@ int isEmpty(node** head) {
 */
 int peekPriority(node** head) {
     return (*head)->priority;
+}
+
+int peekLoadTime(node** head) {
+    return (*head)->data->loading_time;
+}
+
+int peekNumber(node** head) {
+    return (*head)->data->number;
 }
 
 /*
@@ -116,7 +127,11 @@ pthread_cond_t loaded, start_loading, start_crossing_n;
 node* stationWestHead;
 node* stationEastHead;
 
+// Number of trains
 int n;
+
+// Tracks the streak of deployed train in each direction
+int numWest, numEast = 0;
 
 /*
 *   Counts the number of lines in the trains.txt file
@@ -127,7 +142,7 @@ int countLines(char *f) {
     char c;
     int count = 0;
     for (c = fgetc(fp); c != EOF; c = fgetc(fp)) {
-        if (c == '\n') count = count + 1;
+        if (c == '\n') count++;
     }
     fclose(fp);
     return count;
@@ -140,9 +155,9 @@ int countLines(char *f) {
 */
 int priority(char direction) {
     if (direction == 'W' || direction == 'E')
-        return 1;
+        return HIGH;
     else
-        return 0;
+        return LOW;
 }
 
 /*
@@ -160,7 +175,7 @@ void buildTrains(train *trains, char *f, pthread_cond_t *conditions) {
         trains[train_number].loading_time = atoi(loading_time);
         trains[train_number].crossing_time = atoi(crossing_time);
         trains[train_number].train_convar = &conditions[train_number];
-        train_number = train_number + 1;
+        train_number++;
     }
     fclose(fp);
 }
@@ -188,12 +203,13 @@ void printTime() {
     }
 
     accum = (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / BILLION;
-    double x = accum*10;
-    x = (int)x%60;
-    x = (float)x;
-    int hours = (int)accum/3600;
+    double seconds = accum*10;
+    seconds = (int)seconds % 60;
+    seconds = (float)seconds;
+    seconds = seconds/10;
     int minutes = (int)accum/60;
-    printf("%02d:%02d:%04.1f ", hours, minutes, x/10);
+    int hours = (int)accum/3600;
+    printf("%02d:%02d:%04.1f ", hours, minutes, seconds);
 }
 
 /*
@@ -205,6 +221,7 @@ void *start_routine(void *args) {
     usleep(loadTime);
     printTime();
     printf("Train %2d is ready to go %4s.\n", ptrain->number, directionString(ptrain->direction));
+    
     pthread_mutex_lock(&station);
     
     if (ptrain->direction == 'E' || ptrain->direction == 'e') {
@@ -225,6 +242,7 @@ void *start_routine(void *args) {
     n--;
     pthread_mutex_unlock(&track);
     pthread_cond_signal(&start_crossing_n);
+    pthread_exit(0);
 }
 
 /*
@@ -234,23 +252,50 @@ void *start_routine(void *args) {
 */
 int nextTrain(int previous) {
     if (!isEmpty(&stationEastHead) && !isEmpty(&stationWestHead)) {
+        if (numEast == 3) {
+            numEast = 0;
+            return 1;
+        }
+
+        if (numWest == 3) {
+            numWest = 0;
+            return 0;
+        }
+        
         if (peekPriority(&stationEastHead) > peekPriority(&stationWestHead)) {
+            numEast++;
             return 0;
         } else if (peekPriority(&stationEastHead) < peekPriority(&stationWestHead)) {
+            numWest++;
             return 1;
         }
 
         if (previous == 1 || previous == -1) {
+            numEast++;
             return 0;
         } else {
+            numWest++;
             return 1;
         }
+
     } else if (!isEmpty(&stationEastHead) && isEmpty(&stationWestHead)) {
+        numEast++;
         return 0;
     } else if (isEmpty(&stationEastHead) && !isEmpty(&stationWestHead)) {
+        numWest++;
         return 1;
     }
-    return -2;
+    return -10;
+}
+
+/*
+*   Starts the timer
+*/
+void startTimer() {
+    if(clock_gettime(CLOCK_REALTIME, &start) == -1) {
+        perror("clock gettime");
+        exit(EXIT_FAILURE);
+    }
 }
 
 /*
@@ -282,16 +327,15 @@ int main(int argc, char *argv[]) {
 
     buildTrains(trains, argv[1], train_conditions);
 
+    startTimer();
+
     // Create the threads for each train
     for (int i = 0; i < n; i++) {
         int rc = pthread_create(&train_threads[i], NULL, start_routine, (void *) &trains[i]);
     }
 
-    //startbool = 1;
-    if(clock_gettime(CLOCK_REALTIME, &start) == -1) {
-        perror("clock gettime");
-        exit(EXIT_FAILURE);
-    }
+    // Sleep to prevent "jitter" cases
+    sleep(0.001);
     
     int previous = -1;
     while (n != 0) {
@@ -300,8 +344,9 @@ int main(int argc, char *argv[]) {
         if (isEmpty(&stationEastHead) && isEmpty(&stationWestHead)) {
             pthread_cond_wait(&loaded, &track);
         }
-        previous = nextTrain(previous);
 
+        previous = nextTrain(previous);
+        sleep(0.001);
         if (previous == 0) {
             pthread_cond_signal(peek(&stationEastHead)->train_convar);
             pthread_mutex_lock(&station);
@@ -313,7 +358,6 @@ int main(int argc, char *argv[]) {
             dequeue(&stationWestHead);
             pthread_mutex_unlock(&station);          
         }
-
         pthread_cond_wait(&start_crossing_n, &track);
         pthread_mutex_unlock(&track);
     }
