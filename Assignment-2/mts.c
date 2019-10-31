@@ -27,6 +27,10 @@ typedef struct Train {
 
 /*===========================================
             Priority Queue Code
+
+Adopted from the following sources:
+1.) https://www.geeksforgeeks.org/priority-queue-using-linked-list/
+2.) https://rosettacode.org/wiki/Priority_queue#C
 ===========================================*/
 
 /*
@@ -78,10 +82,16 @@ int peekPriority(node** head) {
     return (*head)->priority;
 }
 
+/*
+*   Returns the load time of the train at the head of the queue
+*/
 int peekLoadTime(node** head) {
     return (*head)->data->loading_time;
 }
 
+/*
+*   Returns the number of the train at the head of the queue
+*/
 int peekNumber(node** head) {
     return (*head)->data->number;
 }
@@ -98,6 +108,7 @@ void enqueue(node** head, train* data) {
         return;
     }
 
+    // If priority and load times are equal, the train with the lowest # gets higher priority in the queue
     if ((*head)->priority < temp->priority || 
         ((*head)->data->loading_time == temp->data->loading_time && (*head)->data->number > temp->data->number)) {
         temp->next = *head;
@@ -252,6 +263,8 @@ void *start_routine(void *args) {
 */
 int nextTrain(int previous) {
     if (!isEmpty(&stationEastHead) && !isEmpty(&stationWestHead)) {
+        
+        // Below 2 conditionals ensure trains in 1 direction do not exceed 3 in a row
         if (numEast == 3) {
             numEast = 0;
             return 1;
@@ -262,27 +275,15 @@ int nextTrain(int previous) {
             return 0;
         }
         
-        if (peekPriority(&stationEastHead) > peekPriority(&stationWestHead)) {
-            numEast++;
-            return 0;
-        } else if (peekPriority(&stationEastHead) < peekPriority(&stationWestHead)) {
-            numWest++;
-            return 1;
-        }
+        if (peekPriority(&stationEastHead) > peekPriority(&stationWestHead)) return 0;
+        else if (peekPriority(&stationEastHead) < peekPriority(&stationWestHead)) return 1;
 
-        if (previous == 1 || previous == -1) {
-            numEast++;
-            return 0;
-        } else {
-            numWest++;
-            return 1;
-        }
+        if (previous == 1 || previous == -1) return 0;
+        else return 1;
 
     } else if (!isEmpty(&stationEastHead) && isEmpty(&stationWestHead)) {
-        numEast++;
         return 0;
     } else if (isEmpty(&stationEastHead) && !isEmpty(&stationWestHead)) {
-        numWest++;
         return 1;
     }
     return -10;
@@ -295,6 +296,47 @@ void startTimer() {
     if(clock_gettime(CLOCK_REALTIME, &start) == -1) {
         perror("clock gettime");
         exit(EXIT_FAILURE);
+    }
+}
+
+/*
+*   Dispatching algorithm
+*   Implements the majority of the scheduling rules
+*/
+void dispatch() {
+    int previous = -1;
+    while (n) {
+        pthread_mutex_lock(&track);
+
+        if (isEmpty(&stationEastHead) && isEmpty(&stationWestHead)) {
+            pthread_cond_wait(&loaded, &track);
+        }
+
+        previous = nextTrain(previous);
+
+        // Manages streaks
+        if (previous == 0) {
+            numEast++;
+            numWest = 0;
+        } else if (previous == 1) {
+            numWest++;
+            numEast = 0;
+        }
+
+        sleep(0.001);
+        if (previous == 0) {
+            pthread_cond_signal(peek(&stationEastHead)->train_convar);
+            pthread_mutex_lock(&station);
+            dequeue(&stationEastHead);
+            pthread_mutex_unlock(&station);
+        } else if (previous == 1) {
+            pthread_cond_signal(peek(&stationWestHead)->train_convar);
+            pthread_mutex_lock(&station);
+            dequeue(&stationWestHead);
+            pthread_mutex_unlock(&station);          
+        }
+        pthread_cond_wait(&start_crossing_n, &track);
+        pthread_mutex_unlock(&track);
     }
 }
 
@@ -336,32 +378,9 @@ int main(int argc, char *argv[]) {
 
     // Sleep to prevent "jitter" cases
     sleep(0.001);
-    
-    int previous = -1;
-    while (n != 0) {
-        pthread_mutex_lock(&track);
 
-        if (isEmpty(&stationEastHead) && isEmpty(&stationWestHead)) {
-            pthread_cond_wait(&loaded, &track);
-        }
-
-        previous = nextTrain(previous);
-        sleep(0.001);
-        if (previous == 0) {
-            pthread_cond_signal(peek(&stationEastHead)->train_convar);
-            pthread_mutex_lock(&station);
-            dequeue(&stationEastHead);
-            pthread_mutex_unlock(&station);
-        } else if (previous == 1) {
-            pthread_cond_signal(peek(&stationWestHead)->train_convar);
-            pthread_mutex_lock(&station);
-            dequeue(&stationWestHead);
-            pthread_mutex_unlock(&station);          
-        }
-        pthread_cond_wait(&start_crossing_n, &track);
-        pthread_mutex_unlock(&track);
-    }
-
+    // Start dispatchment algorithm
+    dispatch();
     free(trains);
     return 0;
 }
