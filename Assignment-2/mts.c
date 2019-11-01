@@ -132,7 +132,7 @@ void enqueue(node** head, train* data) {
             MTS Code
 ===========================================*/
 
-pthread_mutex_t station, track;
+pthread_mutex_t station, track, load;
 pthread_cond_t loaded, start_loading, start_crossing_n;
 
 node* stationWestHead;
@@ -140,6 +140,7 @@ node* stationEastHead;
 
 // Number of trains
 int n;
+int builtTrains;
 
 // Tracks the streak of deployed train in each direction
 int numWest, numEast = 0;
@@ -187,6 +188,7 @@ void buildTrains(train *trains, char *f, pthread_cond_t *conditions) {
         trains[train_number].crossing_time = atoi(crossing_time);
         trains[train_number].train_convar = &conditions[train_number];
         train_number++;
+        builtTrains++;
     }
     fclose(fp);
 }
@@ -229,10 +231,13 @@ void printTime() {
 void *start_routine(void *args) {
     train* ptrain = (train*)args;
     unsigned int loadTime = (ptrain->loading_time) * 100000;
+
+    // Wait until all trains are built to start loading
+    while (builtTrains < n) {}
+
     usleep(loadTime);
     printTime();
     printf("Train %2d is ready to go %4s.\n", ptrain->number, directionString(ptrain->direction));
-    
     pthread_mutex_lock(&station);
     
     if (ptrain->direction == 'E' || ptrain->direction == 'e') {
@@ -351,6 +356,7 @@ int main(int argc, char *argv[]) {
     
     // Get the # of trains
     n = countLines(argv[1]);
+    builtTrains = 0;
 
     pthread_mutex_init(&station, NULL);
     pthread_mutex_init(&track, NULL);
@@ -370,7 +376,7 @@ int main(int argc, char *argv[]) {
     buildTrains(trains, argv[1], train_conditions);
 
     startTimer();
-
+    
     // Create the threads for each train
     for (int i = 0; i < n; i++) {
         int rc = pthread_create(&train_threads[i], NULL, start_routine, (void *) &trains[i]);
