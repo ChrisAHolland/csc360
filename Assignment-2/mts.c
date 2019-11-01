@@ -216,13 +216,9 @@ void printTime() {
     }
 
     accum = (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / BILLION;
-    double seconds = accum*10;
-    seconds = (int)seconds % 60;
-    seconds = (float)seconds;
-    seconds = seconds/10;
     int minutes = (int)accum/60;
     int hours = (int)accum/3600;
-    printf("%02d:%02d:%04.1f ", hours, minutes, seconds);
+    printf("%02d:%02d:%04.1f ", hours, minutes, accum);
 }
 
 /*
@@ -233,7 +229,7 @@ void *start_routine(void *args) {
     unsigned int loadTime = (ptrain->loading_time) * 100000;
 
     // Wait until all trains are built to start loading
-    while (builtTrains < n) {}
+    //while (builtTrains < n) {}
 
     usleep(loadTime);
     printTime();
