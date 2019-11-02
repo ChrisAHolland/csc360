@@ -8,6 +8,10 @@
 #define HIGH 1
 #define LOW 0
 
+// Directions
+#define EAST 0
+#define WEST 1
+
 // Timer setup from Tutorial 7
 #define BILLION 1000000000.0;
 struct timespec start, stop;
@@ -254,24 +258,24 @@ int nextTrain(int previous) {
         // Below 2 conditionals ensure trains in 1 direction do not exceed 3 in a row
         if (numEast == 3) {
             numEast = 0;
-            return 1;
+            return WEST;
         }
 
         if (numWest == 3) {
             numWest = 0;
-            return 0;
+            return EAST;
         }
         
-        if (peekPriority(&stationEastHead) > peekPriority(&stationWestHead)) return 0;
-        else if (peekPriority(&stationEastHead) < peekPriority(&stationWestHead)) return 1;
+        if (peekPriority(&stationEastHead) > peekPriority(&stationWestHead)) return EAST;
+        else if (peekPriority(&stationEastHead) < peekPriority(&stationWestHead)) return WEST;
 
-        if (previous == 1 || previous == -1) return 0;
-        else return 1;
+        if (previous == 1 || previous == -1) return EAST;
+        else return WEST;
 
     } else if (!isEmpty(&stationEastHead) && isEmpty(&stationWestHead)) {
-        return 0;
+        return EAST;
     } else if (isEmpty(&stationEastHead) && !isEmpty(&stationWestHead)) {
-        return 1;
+        return WEST;
     }
     return -10;
 }
@@ -302,21 +306,21 @@ void dispatch() {
         previous = nextTrain(previous);
 
         // Manages streaks
-        if (previous == 0) {
+        if (previous == EAST) {
             numEast++;
             numWest = 0;
-        } else if (previous == 1) {
+        } else if (previous == WEST) {
             numWest++;
             numEast = 0;
         }
 
         sleep(0.001);
-        if (previous == 0) {
+        if (previous == EAST) {
             pthread_cond_signal(peek(&stationEastHead)->train_convar);
             pthread_mutex_lock(&station);
             dequeue(&stationEastHead);
             pthread_mutex_unlock(&station);
-        } else if (previous == 1) {
+        } else if (previous == WEST) {
             pthread_cond_signal(peek(&stationWestHead)->train_convar);
             pthread_mutex_lock(&station);
             dequeue(&stationWestHead);
