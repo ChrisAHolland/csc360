@@ -83,20 +83,6 @@ int peekPriority(node** head) {
 }
 
 /*
-*   Returns the load time of the train at the head of the queue
-*/
-int peekLoadTime(node** head) {
-    return (*head)->data->loading_time;
-}
-
-/*
-*   Returns the number of the train at the head of the queue
-*/
-int peekNumber(node** head) {
-    return (*head)->data->number;
-}
-
-/*
 *   Adds a new train/node to the queue
 */
 void enqueue(node** head, train* data) {
@@ -229,7 +215,7 @@ void *start_routine(void *args) {
     unsigned int loadTime = (ptrain->loading_time) * 100000;
 
     // Wait until all trains are built to start loading
-    //while (builtTrains < n) {}
+    while (builtTrains < n) {}
 
     usleep(loadTime);
     printTime();
