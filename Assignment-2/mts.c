@@ -166,17 +166,22 @@ int priority(char direction) {
 *   Builds the trains in the array of structs
 *   from the given input file and array of conditions
 */
-void buildTrains(train *trains, char *f, pthread_cond_t *conditions) {
+void buildTrains(train *trains, char *f, pthread_cond_t *train_conditions) {
+    // Initiate the condition variables
+    for (int i = 0; i < n; i++) {
+        pthread_cond_init(&train_conditions[i], NULL);
+    }
+
     char direction[3], loading_time[3], crossing_time[3];
     int train_number = 0;
     FILE *fp = fopen(f, "r");
-    while (fscanf(fp, "%s %s %s", direction, loading_time, crossing_time) == 3) {
+    while (fscanf(fp, "%s %s %s", direction, loading_time, crossing_time) != EOF) {
         trains[train_number].number = train_number;
         trains[train_number].direction = direction[0];
         trains[train_number].priority = priority(direction[0]);
         trains[train_number].loading_time = atoi(loading_time);
         trains[train_number].crossing_time = atoi(crossing_time);
-        trains[train_number].train_convar = &conditions[train_number];
+        trains[train_number].train_convar = &train_conditions[train_number];
         train_number++;
         builtTrains++;
     }
@@ -244,6 +249,7 @@ void *start_routine(void *args) {
     n--;
     pthread_mutex_unlock(&track);
     pthread_cond_signal(&start_crossing_n);
+    pthread_cond_destroy(ptrain->train_convar);
     pthread_exit(0);
 }
 
@@ -266,12 +272,15 @@ int nextTrain(int previous) {
             return EAST;
         }
         
-        if (peekPriority(&stationEastHead) > peekPriority(&stationWestHead)) return EAST;
-        else if (peekPriority(&stationEastHead) < peekPriority(&stationWestHead)) return WEST;
-
-        if (previous == 1 || previous == -1) return EAST;
-        else return WEST;
-
+        if (peekPriority(&stationEastHead) > peekPriority(&stationWestHead)) { 
+            return EAST;
+        } else if (peekPriority(&stationEastHead) < peekPriority(&stationWestHead)) {
+            return WEST;
+        } else {
+            if (previous == 1 || previous == -1) return EAST;
+            else return WEST;
+        }
+        
     } else if (!isEmpty(&stationEastHead) && isEmpty(&stationWestHead)) {
         return EAST;
     } else if (isEmpty(&stationEastHead) && !isEmpty(&stationWestHead)) {
@@ -305,26 +314,27 @@ void dispatch() {
 
         previous = nextTrain(previous);
 
-        // Manages streaks
-        if (previous == EAST) {
-            numEast++;
-            numWest = 0;
-        } else if (previous == WEST) {
-            numWest++;
-            numEast = 0;
-        }
-
         sleep(0.001);
-        if (previous == EAST) {
-            pthread_cond_signal(peek(&stationEastHead)->train_convar);
-            pthread_mutex_lock(&station);
-            dequeue(&stationEastHead);
-            pthread_mutex_unlock(&station);
-        } else if (previous == WEST) {
-            pthread_cond_signal(peek(&stationWestHead)->train_convar);
-            pthread_mutex_lock(&station);
-            dequeue(&stationWestHead);
-            pthread_mutex_unlock(&station);          
+
+        switch(previous) {
+            case EAST:
+                numEast++;
+                numWest = 0;
+                pthread_cond_signal(peek(&stationEastHead)->train_convar);
+                pthread_mutex_lock(&station);
+                dequeue(&stationEastHead);
+                pthread_mutex_unlock(&station);
+                break;
+            case WEST:
+                numWest++;
+                numEast = 0;
+                pthread_cond_signal(peek(&stationWestHead)->train_convar);
+                pthread_mutex_lock(&station);
+                dequeue(&stationWestHead);
+                pthread_mutex_unlock(&station);
+                break;
+            default:
+                break;        
         }
         pthread_cond_wait(&start_crossing_n, &track);
         pthread_mutex_unlock(&track);
@@ -344,20 +354,18 @@ int main(int argc, char *argv[]) {
     n = countLines(argv[1]);
     builtTrains = 0;
 
+    // Initiate mutex's
     pthread_mutex_init(&station, NULL);
     pthread_mutex_init(&track, NULL);
+
+    // Initiate condition variable
+    pthread_cond_init(&start_crossing_n, NULL);
+
     pthread_t train_threads[n];
     pthread_cond_t train_conditions[n];
-    pthread_cond_init(&start_crossing_n, NULL);
 
     // Build the trains
     train *trains = malloc(n * sizeof(*trains));
-
-    // Initiate the condition variables
-    for (int i = 0; i < n; i++) {
-        pthread_cond_init(&train_conditions[i], NULL);
-    }
-
     buildTrains(trains, argv[1], train_conditions);
 
     startTimer();
@@ -367,7 +375,7 @@ int main(int argc, char *argv[]) {
         int rc = pthread_create(&train_threads[i], NULL, start_routine, (void *) &trains[i]);
     }
 
-    // Sleep to prevent "jitter" cases
+    // Sleep to prevent "jitter"
     sleep(0.001);
 
     // Start dispatchment algorithm
