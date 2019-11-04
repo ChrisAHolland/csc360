@@ -122,8 +122,8 @@ void enqueue(node** head, train* data) {
             MTS Code
 ===========================================*/
 
-pthread_mutex_t station, track, load;
-pthread_cond_t loaded, start_loading, start_crossing_n;
+pthread_mutex_t station, track;
+pthread_cond_t loaded, start_crossing_n;
 
 node* stationWestHead;
 node* stationEastHead;
@@ -348,7 +348,6 @@ int main(int argc, char *argv[]) {
     pthread_mutex_init(&track, NULL);
     pthread_t train_threads[n];
     pthread_cond_t train_conditions[n];
-    pthread_cond_init(&start_loading, NULL);
     pthread_cond_init(&start_crossing_n, NULL);
 
     // Build the trains
@@ -373,6 +372,12 @@ int main(int argc, char *argv[]) {
 
     // Start dispatchment algorithm
     dispatch();
+
+    // Cleanup and exit
     free(trains);
+    pthread_mutex_destroy(&station);
+    pthread_mutex_destroy(&track);
+    pthread_cond_destroy(&loaded);
+    pthread_cond_destroy(&start_crossing_n);
     return 0;
 }
