@@ -47,14 +47,21 @@ struct __attribute__((__packed__)) dir_entry_t {
 
 /*
 *   Part 1: diskinfo
+*
+*   Sources:
+*   codewiki.wikidot.com/c:system-calls:fstat
+*   www.tutorialspoint.com/c_standard_library/c_function_memcpy.html
+*   www.tutorialsdaddy.com/courses/linux-device-driver/lessons/mmap/
 */
 void diskinfo(int argc, char** argv) {
-    if (argc < 2) return 1;
+    if (argc < 2)
+        return 1;
     
     int fd = open(argv[1], O_RDWR);
     struct stat fileStats;
 
-    if (fstat(fd, &fileStats) < 0) return 1;
+    if (fstat(fd, &fileStats) < 0)
+        return 1;
 
     char* data = mmap(NULL, fileStats.st_size, PROT_WRITE|PROT_READ, MAP_SHARED, fd, 0);
     struct superblock_t* superBlock;
@@ -102,7 +109,31 @@ void diskinfo(int argc, char** argv) {
 *   Part 2: disklist
 */
 void disklist(int argc, char** argv) {
-    printf("Part 2\n");
+    if (argc < 3) return 1;
+
+    // Tokenize the input directory
+    char* tokens[128];
+    char directory = argv[2];
+    char* args = strtok(directory, "/");
+    int i = 0;
+    while (args) {
+        tokens[i++] = args;
+        args =  strtok(NULL, "/");
+    }
+    tokens[i] = NULL;
+
+    // Open and assemble the disk image
+    int fd = open(argv[1], O_RDWR);
+    struct stat fileStats;
+
+    if (fstat(fd, &fileStats) < 0)
+        return 1;
+
+    char* data = mmap(NULL, fileStats.st_size, PROT_WRITE|PROT_READ, MAP_SHARED, fd, 0);
+    struct superblock_t* superBlock;
+    superBlock = (struct superblock_t*) data;
+
+
 }
 
 /*
