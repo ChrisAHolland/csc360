@@ -6,6 +6,11 @@
 #include <limits.h>
 #include <assert.h>
 #include <time.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 // Supper Block Struct
 struct __attribute__((__packed__)) superblock_t {
@@ -44,7 +49,53 @@ struct __attribute__((__packed__)) dir_entry_t {
 *   Part 1: diskinfo
 */
 void diskinfo(int argc, char** argv) {
-    printf("Part 1\n");
+    if (argc < 2) return 1;
+    
+    int fd = open(argv[1], O_RDWR);
+    struct stat fileStats;
+
+    if (fstat(fd, &fileStats) < 0) return 1;
+
+    char* data = mmap(NULL, fileStats.st_size, PROT_WRITE|PROT_READ, MAP_SHARED, fd, 0);
+    struct superblock_t* superBlock;
+    superBlock = (struct superblock_t*) data;
+
+    int blockSize = htons(superBlock->block_size);
+    int fatStart = ntohl(superBlock->fat_start_block);
+    int fatCount = ntohl(superBlock->fat_block_count);
+
+    printf("Super block information:\n");
+    printf("Block size: %d\n", blockSize);
+    printf("Block count: %d\n", ntohl(superBlock->file_system_block_count));
+    printf("FAT starts: %d\n", fatStart);
+    printf("FAT blocks: %d\n", fatCount);
+    printf("Root directory start: %d\n", ntohl(superBlock->root_dir_start_block));
+    printf("Root directory blocks: %d\n\n", ntohl(superBlock->root_dir_block_count));
+
+    int startBlock = fatStart * blockSize;
+    int endBlock = fatCount * blockSize;
+
+    int freeBlocks, reservedBlocks, allocBlocks = 0;
+
+    for (int i = startBlock; i < startBlock + endBlock; i += 4) {
+        int temp = 0;
+        memcpy(&temp, data + i, 4);
+        temp = htonl(temp);
+        if(temp == 0) {
+            freeBlocks++;
+        } else if (temp == 1) {
+            reservedBlocks++;
+        } else {
+            allocBlocks++;
+        }
+    }
+
+    printf("FAT information:\n");
+    printf("Free Blocks: %d\n", freeBlocks);
+    printf("Reserved Blocks: %d\n", reservedBlocks);
+    printf("Allocated Blocks: %d\n", allocBlocks);
+
+    close(fd);
 }
 
 /*
