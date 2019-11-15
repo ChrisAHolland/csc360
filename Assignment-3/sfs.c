@@ -109,9 +109,8 @@ void diskinfo(int argc, char** argv) {
 *   Part 2: disklist
 */
 void disklist(int argc, char** argv) {
-    if (argc < 3) return 1;
-
     // Tokenize the input directory
+    /*
     char* tokens[128];
     char directory = argv[2];
     char* args = strtok(directory, "/");
@@ -121,7 +120,7 @@ void disklist(int argc, char** argv) {
         args =  strtok(NULL, "/");
     }
     tokens[i] = NULL;
-
+`*/
     // Open and assemble the disk image
     int fd = open(argv[1], O_RDWR);
     struct stat fileStats;
@@ -133,7 +132,27 @@ void disklist(int argc, char** argv) {
     struct superblock_t* superBlock;
     superBlock = (struct superblock_t*) data;
 
+    int blockSize, rootStart, rootEnd = 0;
 
+    blockSize = htons(superBlock->block_size);
+    rootStart = ntohl(superBlock->root_dir_start_block) * blockSize;
+    int rootBlocks = ntohl(superBlock->root_dir_block_count);
+    rootEnd = rootBlocks * blockSize;
+
+    struct dir_entry_t* root_block;
+
+    if (argc == 2) {
+        char* status;
+        int fileSize = 0;
+
+        //struct dir_entry_t* ptr = (struct dir_entry_t *) superBlock->root_dir_start_block;
+        //char* data1 = mmap(NULL, fileStats.st_size, PROT_WRITE|PROT_READ, MAP_SHARED, fd, 0);
+        //printf("%x\n", data1);
+        //struct dir_entry_t* ptr = (struct dir_entry_t *) rootStart;
+        //root_block = ptr;
+        root_block = (struct dir_entry_t*) data+64;
+        printf("status: %10d\n", ntohl(root_block->size));
+    }
 }
 
 /*
