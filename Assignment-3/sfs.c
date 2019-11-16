@@ -142,16 +142,23 @@ void disklist(int argc, char** argv) {
     struct dir_entry_t* root_block;
 
     if (argc == 2) {
-        char* status;
-        int fileSize = 0;
 
-        //struct dir_entry_t* ptr = (struct dir_entry_t *) superBlock->root_dir_start_block;
-        //char* data1 = mmap(NULL, fileStats.st_size, PROT_WRITE|PROT_READ, MAP_SHARED, fd, 0);
-        //printf("%x\n", data1);
-        //struct dir_entry_t* ptr = (struct dir_entry_t *) rootStart;
-        //root_block = ptr;
-        root_block = (struct dir_entry_t*) data+64;
-        printf("status: %10d\n", ntohl(root_block->size));
+        for (int i = rootStart; i <= rootStart+blockSize; i +=64) {
+            root_block = (struct dir_entry_t*) (data+i);
+            if (ntohl(root_block->size) == 0) continue;
+            int status = root_block->status;
+            if (status == 3) status = 'F';
+            else if (status = 5) status = 'D';
+            int size = ntohl(root_block->size);
+            char* name = root_block->filename;
+            int year = htons(root_block->modify_time.year);
+            int month = root_block->modify_time.month;
+            int day = root_block->modify_time.day;
+            int hours = root_block->modify_time.hour;
+            int minutes = root_block->modify_time.minute;
+            int seconds = root_block->modify_time.second;
+            printf("%c %10d %30s %d/%02d/%02d %02d:%02d:%02d\n",status,size,name,year,month,day,hours,minutes,seconds);
+        }
     }
 }
 
