@@ -60,8 +60,7 @@ void diskinfo(int argc, char** argv) {
     int fd = open(argv[1], O_RDWR);
     struct stat fileStats;
 
-    if (fstat(fd, &fileStats) < 0)
-        return 1;
+    fstat(fd, &fileStats);
 
     char* data = mmap(NULL, fileStats.st_size, PROT_WRITE|PROT_READ, MAP_SHARED, fd, 0);
     struct superblock_t* superBlock;
@@ -109,55 +108,90 @@ void diskinfo(int argc, char** argv) {
 *   Part 2: disklist
 */
 void disklist(int argc, char** argv) {
+    char* dirName = argv[2];
+    
     // Tokenize the input directory
-    /*
     char* tokens[128];
-    char directory = argv[2];
-    char* args = strtok(directory, "/");
-    int i = 0;
-    while (args) {
-        tokens[i++] = args;
-        args =  strtok(NULL, "/");
+    char* directory = argv[2];
+    int dirs = 0;
+    if (argc == 3) {
+        char* args = strtok(directory, "/");
+        int i = 0;
+        while (args) {
+            tokens[i++] = args;
+            args =  strtok(NULL, "/");
+            dirs++;
+        }
+        tokens[i] = NULL;
     }
-    tokens[i] = NULL;
-`*/
+    
     // Open and assemble the disk image
     int fd = open(argv[1], O_RDWR);
     struct stat fileStats;
 
-    if (fstat(fd, &fileStats) < 0)
-        return 1;
+    fstat(fd, &fileStats);
 
     char* data = mmap(NULL, fileStats.st_size, PROT_WRITE|PROT_READ, MAP_SHARED, fd, 0);
     struct superblock_t* superBlock;
     superBlock = (struct superblock_t*) data;
 
-    int blockSize, rootStart, rootEnd = 0;
-
+    int blockSize, rootStart = 0;
     blockSize = htons(superBlock->block_size);
     rootStart = ntohl(superBlock->root_dir_start_block) * blockSize;
-    int rootBlocks = ntohl(superBlock->root_dir_block_count);
-    rootEnd = rootBlocks * blockSize;
 
     struct dir_entry_t* root_block;
 
-    if (argc == 2) {
+    if (argc == 3 && strcmp(dirName, "/")) {
+        int offSet = rootStart;
+        int curr = 0;
+        while(1) {
+            for (int i = offSet; i < offSet + blockSize; i += 64) {
+                root_block = (struct dir_entry_t*) (data+i);
+                const char* name = (const char*)root_block->filename;
+                if (!strcmp(name, tokens[curr])) {
+                    curr++;
+                    offSet = ntohl(root_block->starting_block) * blockSize;
+                    if (curr == dirs) {
+                        for (int j = offSet; j < offSet + blockSize; j += 64) {
+                            root_block = (struct dir_entry_t*) (data + j);
+                            if (ntohl(root_block->size) == 0) continue;
+                            int status = root_block->status;
+                            if (status == 3) status = 'F';
+                            else if (status == 5) status = 'D';
+                            int size = ntohl(root_block->size);
+                            unsigned char* name = root_block->filename;
+                            int year = htons(root_block->modify_time.year);
+                            int month = root_block->modify_time.month;
+                            int day = root_block->modify_time.day;
+                            int hours = root_block->modify_time.hour;
+                            int minutes = root_block->modify_time.minute;
+                            int seconds = root_block->modify_time.second;
+                            printf("%c %10d %30s %4d/%02d/%02d %02d:%02d:%02d\n",status,size,name,year,month,day,hours,minutes,seconds);
+                        }
+                        return;
+                    }
+                    break;
+                }
+            }
+        }
+    }
 
-        for (int i = rootStart; i <= rootStart+blockSize; i +=64) {
+    if (argc == 2 || !strcmp(dirName, "/")) {
+        for (int i = rootStart; i <= rootStart+blockSize; i += 64) {
             root_block = (struct dir_entry_t*) (data+i);
             if (ntohl(root_block->size) == 0) continue;
             int status = root_block->status;
             if (status == 3) status = 'F';
-            else if (status = 5) status = 'D';
+            else if (status == 5) status = 'D';
             int size = ntohl(root_block->size);
-            char* name = root_block->filename;
+            unsigned char* name = root_block->filename;
             int year = htons(root_block->modify_time.year);
             int month = root_block->modify_time.month;
             int day = root_block->modify_time.day;
             int hours = root_block->modify_time.hour;
             int minutes = root_block->modify_time.minute;
             int seconds = root_block->modify_time.second;
-            printf("%c %10d %30s %d/%02d/%02d %02d:%02d:%02d\n",status,size,name,year,month,day,hours,minutes,seconds);
+            printf("%c %10d %30s %4d/%02d/%02d %02d:%02d:%02d\n",status,size,name,year,month,day,hours,minutes,seconds);
         }
     }
 }
