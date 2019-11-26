@@ -54,9 +54,6 @@ struct __attribute__((__packed__)) dir_entry_t {
 *   www.tutorialsdaddy.com/courses/linux-device-driver/lessons/mmap/
 */
 void diskinfo(int argc, char** argv) {
-    if (argc < 2)
-        return 1;
-    
     int fd = open(argv[1], O_RDWR);
     struct stat fileStats;
 
@@ -151,7 +148,7 @@ void disklist(int argc, char** argv) {
                 if (!strcmp(name, tokens[curr])) {
                     curr++;
                     offSet = ntohl(root_block->starting_block) * blockSize;
-                    if (curr == dirs) {
+                    if (curr == dirs || argc == 2 || !strcmp(dirName, "/")) {
                         for (int j = offSet; j < offSet + blockSize; j += 64) {
                             root_block = (struct dir_entry_t*) (data + j);
                             if (ntohl(root_block->size) == 0) continue;
@@ -200,7 +197,69 @@ void disklist(int argc, char** argv) {
 *   Part 3: diskget
 */
 void diskget(int argc, char** argv) {
-    printf("Part 3\n");
+    //char* dirName = argv[2];
+    char* filename = argv[3];
+    
+    // Tokenize the input directory
+    char* tokens[128];
+    char* directory = argv[2];
+    int dirs = 0;
+    
+    char* args = strtok(directory, "/");
+    int i = 0;
+    while (args) {
+        tokens[i++] = args;
+        args =  strtok(NULL, "/");
+        dirs++;
+    }
+    tokens[i] = NULL;
+    
+    
+    // Open and assemble the disk image
+    int fd = open(argv[1], O_RDWR);
+    struct stat fileStats;
+
+    fstat(fd, &fileStats);
+
+    char* data = mmap(NULL, fileStats.st_size, PROT_WRITE|PROT_READ, MAP_SHARED, fd, 0);
+    struct superblock_t* superBlock;
+    superBlock = (struct superblock_t*) data;
+
+    int blockSize, rootStart = 0;
+    blockSize = htons(superBlock->block_size);
+    rootStart = ntohl(superBlock->root_dir_start_block) * blockSize;
+
+    struct dir_entry_t* root_block;
+
+    int offSet = rootStart;
+    int curr = 0;
+    while(1) {
+        for (int i = offSet; i < offSet + blockSize; i += 64) {
+            root_block = (struct dir_entry_t*) (data+i);
+            const char* name = (const char*)root_block->filename;
+            if (!strcmp(name, tokens[curr])) {
+                curr++;
+                offSet = ntohl(root_block->starting_block) * blockSize;
+                if (curr == dirs) {
+                    for (int j = offSet; j < offSet + blockSize; j += 64) {
+                        root_block = (struct dir_entry_t*) (data + offSet);
+                        
+                        FILE *fp;
+                        fp = fopen(filename, "wb");
+                        fwrite(root_block->filename-7, 1, blockSize-20, fp);
+                        close(fd);
+                        break;
+                    }
+                    return;
+                }
+                break;
+            }
+            if (curr == (dirs-1)) {
+                printf("File not found.\n");
+                return;
+            }
+        }
+    }
 }
 
 /*
