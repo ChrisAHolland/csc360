@@ -54,6 +54,11 @@ struct __attribute__((__packed__)) dir_entry_t {
 *   www.tutorialsdaddy.com/courses/linux-device-driver/lessons/mmap/
 */
 void diskinfo(int argc, char** argv) {
+    if (argc < 2) {
+        printf("Please supply a disk image.");
+        return;
+    }
+
     int fd = open(argv[1], O_RDWR);
     struct stat fileStats;
 
@@ -172,7 +177,7 @@ void disklist(int argc, char** argv) {
             }
         }
     }
-
+    
     if (argc == 2 || !strcmp(dirName, "/")) {
         for (int i = rootStart; i <= rootStart+blockSize; i += 64) {
             root_block = (struct dir_entry_t*) (data+i);
@@ -273,7 +278,40 @@ void diskput(int argc, char** argv) {
 *   Part 5: diskfix
 */
 void diskfix(int argc, char** argv) {
-    printf("Part 5\n");
+    if (argc < 2) {
+        printf("Please supply a disk image.");
+        return;
+    }
+
+    // Open and assemble the disk image
+    int fd = open(argv[1], O_RDWR);
+    struct stat fileStats;
+
+    fstat(fd, &fileStats);
+
+    char* data = mmap(NULL, fileStats.st_size, PROT_WRITE|PROT_READ, MAP_SHARED, fd, 0);
+    struct superblock_t* superBlock;
+    superBlock = (struct superblock_t*) data;
+
+    int blockSize, rootStart = 0;
+    blockSize = htons(superBlock->block_size);
+    rootStart = ntohl(superBlock->root_dir_start_block) * blockSize;
+
+    struct dir_entry_t* root_block;
+
+    int offSet = rootStart;
+    int block = 0;
+
+    for (int i = offSet; i <= offSet + blockSize; i += 64, block++) {
+        root_block = (struct dir_entry_t*) (data+i);
+        
+        int status = root_block->status;
+        const char* name = (const char*)root_block->filename;
+        
+        if ((status == 3 || status == 5) && ntohl(root_block->size) == 0) {
+            printf("test\n");
+        }
+    }
 }
 
 int main(int argc, char* argv[]) {
