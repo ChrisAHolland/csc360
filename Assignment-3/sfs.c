@@ -68,6 +68,15 @@ void diskinfo(int argc, char** argv) {
     struct superblock_t* superBlock;
     superBlock = (struct superblock_t*) data;
 
+    //unsigned char* id = superBlock->fs_id;
+    
+    /*
+    if (strcmp(id, "CSC360FS")) {
+        printf("Could not identify CSC360FS filesystem.\n");
+        return;
+    }
+    */
+
     int blockSize = htons(superBlock->block_size);
     int fatStart = ntohl(superBlock->fat_start_block);
     int fatCount = ntohl(superBlock->fat_block_count);
@@ -202,7 +211,6 @@ void disklist(int argc, char** argv) {
 *   Part 3: diskget
 */
 void diskget(int argc, char** argv) {
-    //char* dirName = argv[2];
     char* filename = argv[3];
     
     // Tokenize the input directory
@@ -212,6 +220,7 @@ void diskget(int argc, char** argv) {
     
     char* args = strtok(directory, "/");
     int i = 0;
+
     while (args) {
         tokens[i++] = args;
         args =  strtok(NULL, "/");
@@ -271,7 +280,61 @@ void diskget(int argc, char** argv) {
 *   Part 4: diskput
 */
 void diskput(int argc, char** argv) {
-    printf("Part 4\n");
+    char* filename = argv[2];
+    
+    // Tokenize the input directory
+    char* tokens[128];
+    char* directory = argv[3];
+    int dirs = 0;
+    
+    char* args = strtok(directory, "/");
+    int i = 0;
+
+    while (args) {
+        tokens[i++] = args;
+        args =  strtok(NULL, "/");
+        dirs++;
+    }
+    tokens[i] = NULL;
+    
+    
+    // Open and assemble the disk image
+    int fd = open(argv[1], O_RDWR);
+    struct stat fileStats;
+
+    fstat(fd, &fileStats);
+
+    char* data = mmap(NULL, fileStats.st_size, PROT_WRITE|PROT_READ, MAP_SHARED, fd, 0);
+    struct superblock_t* superBlock;
+    superBlock = (struct superblock_t*) data;
+
+    int blockSize, rootStart = 0;
+    blockSize = htons(superBlock->block_size);
+    rootStart = ntohl(superBlock->root_dir_start_block) * blockSize;
+
+    struct dir_entry_t* root_block;
+
+    int offSet = rootStart;
+    int curr = 0;
+    while(1) {
+        for (int i = offSet; i < offSet + blockSize; i += 64) {
+            root_block = (struct dir_entry_t*) (data+i);
+            const char* name = (const char*)root_block->filename;
+            if (!strcmp(name, tokens[curr])) {
+                curr++;
+                offSet = ntohl(root_block->starting_block) * blockSize;
+                if (curr == dirs) {
+                    for (int j = offSet; j < offSet + blockSize; j += 64) {
+                        root_block = (struct dir_entry_t*) (data + offSet);
+                        FILE* fp = fopen(filename, "wb");
+                        fclose(fp);
+                    }
+                    return;
+                }
+                break;
+            }
+        }
+    }
 }
 
 /*
@@ -293,24 +356,28 @@ void diskfix(int argc, char** argv) {
     struct superblock_t* superBlock;
     superBlock = (struct superblock_t*) data;
 
-    int blockSize, rootStart = 0;
+    int blockSize = 0;
     blockSize = htons(superBlock->block_size);
-    rootStart = ntohl(superBlock->root_dir_start_block) * blockSize;
 
-    struct dir_entry_t* root_block;
-
-    int offSet = rootStart;
     int block = 0;
 
-    for (int i = offSet; i <= offSet + blockSize; i += 64, block++) {
-        root_block = (struct dir_entry_t*) (data+i);
+    int fatStart = ntohl(superBlock->fat_start_block);
+    int fatCount = ntohl(superBlock->fat_block_count);
+    int startBlock = fatStart * blockSize;
+    int endBlock = fatCount * blockSize;
+
+    for (int i = startBlock; i < startBlock + endBlock; i += 4) {
+        int temp = 0;
+        memcpy(&temp, data + i, 4);
+        temp = htonl(temp);
+        if(temp == 0) {
+            
+        } else if (temp == 1) {
         
-        int status = root_block->status;
-        const char* name = (const char*)root_block->filename;
-        
-        if ((status == 3 || status == 5) && ntohl(root_block->size) == 0) {
-            printf("test\n");
+        } else {
+            
         }
+        block++;
     }
 }
 
